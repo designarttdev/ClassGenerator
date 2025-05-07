@@ -100,6 +100,7 @@ begin
   TipoUnit := 'T' + edtUnit.Text;
   TipoInterface := edtInterface.Text;
 
+  // Transforma os campos separados por ";" em itens de um array
   InputFields := StringReplace(Trim(MemoInput.Text).ToLower, sLineBreak, '', [rfReplaceAll]).Split([';']);
 
   for I := 0 to High(InputFields) do
