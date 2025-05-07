@@ -1,4 +1,4 @@
-program ClasseGenerator;
+program ClassGenerator;
 
 uses
   Vcl.Forms,
