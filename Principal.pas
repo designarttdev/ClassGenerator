@@ -53,7 +53,7 @@ implementation
 
 {$R *.dfm}
 
-// Função para converter string em CamelCase completo com base nas "intenções" das palavras
+// FunÃ§Ã£o para converter string em CamelCase completo com base nas "intenÃ§Ãµes" das palavras
 function TFormClassGenerator.ToCamelCase(const S: string): string;
 var
   I: Integer;
@@ -73,10 +73,40 @@ begin
     else
       ResultStr := ResultStr + Cleaned[I];
   end;
-  // Remove espaços restantes
-  Result := StringReplace(ResultStr, ' ', '', [rfReplaceAll]);
-end;
+  DefaultValue, Entry: string;
+  I, DefaultPos, NotNullPos: Integer;
+  FieldTokens: TArray<string>;
+    Entry := Trim(InputFields[I]);
+    if Entry = '' then Continue;
 
+    DefaultPos := Pos(' default ', Entry);
+    if DefaultPos = 0 then
+      DefaultPos := Pos(' default(', Entry);
+
+    if DefaultPos > 0 then
+    begin
+      FieldName := Trim(Copy(Entry, 1, DefaultPos - 1));
+      DefaultValue := Trim(Copy(Entry, DefaultPos + Length(' default '), Length(Entry)));
+      NotNullPos := Pos(' not null', DefaultValue);
+      if NotNullPos > 0 then
+        DefaultValue := Trim(Copy(DefaultValue, 1, NotNullPos - 1));
+      DefaultValue := StringReplace(DefaultValue, ')', '', [rfReplaceAll]);
+      DefaultValue := StringReplace(DefaultValue, '(', '', [rfReplaceAll]);
+      DefaultValue := StringReplace(DefaultValue, ';', '', [rfReplaceAll]);
+    end
+    else
+    begin
+      FieldTokens := Entry.Split([' ']);
+      if Length(FieldTokens) > 0 then
+        FieldName := FieldTokens[0]
+      else
+        FieldName := Entry;
+      DefaultValue := '';
+    end
+
+    if DefaultValue <> '' then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ' + DefaultValue + ';')
+    else
 procedure TFormClassGenerator.LimpaCampos;
 begin
   MemoCampos.Clear;
@@ -87,7 +117,7 @@ begin
   MemoDecSet.Clear;
 end;
 
-// Evento que executa a geração
+// Evento que executa a geraÃ§Ã£o
 procedure TFormClassGenerator.ButtonGerarClick(Sender: TObject);
 var
   InputFields: TArray<string>;
@@ -113,7 +143,7 @@ begin
     // Adiciona o campo com "F" e nome formatado
     MemoCampos.Lines.Add('F' + CamelName + ': ' + Trim(edtTipo.Text) + ';'); // substitua "tipo" manualmente
 
-    // Gera função Set
+    // Gera funÃ§Ã£o Set
     SetLine := Format('function Set%s(value: ' + Trim(edtTipo.Text) + '): %s;', [CamelName, TipoInterface]);
     MemoDecSet.Lines.Add(SetLine);
 
@@ -130,7 +160,7 @@ begin
     MemoSet.Lines.Add('end;');
     MemoSet.Lines.Add('');
 
-    // Gera função Retorna
+    // Gera funÃ§Ã£o Retorna
     RetornaLine := Format('function Retorna%s: ' + Trim(edtTipo.Text) + ';', [CamelName]);
     MemoDecRetorna.Lines.Add(RetornaLine);
 
