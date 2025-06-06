@@ -36,8 +36,6 @@ object FormClassGenerator: TFormClassGenerator
         BevelOuter = bvNone
         BorderStyle = bsNone
         TabOrder = 0
-        ExplicitLeft = 232
-        ExplicitTop = 312
         object Label1: TLabel
           Left = 20
           Top = 19
@@ -175,6 +173,36 @@ object FormClassGenerator: TFormClassGenerator
           ScrollBars = ssVertical
           TabOrder = 2
         end
+        object btnCopiarDecRetorna: TBitBtn
+          Left = 712
+          Top = 29
+          Width = 205
+          Height = 25
+          Caption = 'Copiar declara'#231#245'es RETORNA'
+          TabOrder = 3
+          TabStop = False
+          OnClick = btnCopiarDecRetornaClick
+        end
+        object btnCopiarDecSET: TBitBtn
+          Left = 712
+          Top = 225
+          Width = 205
+          Height = 25
+          Caption = 'Copiar declara'#231#245'es SET'
+          TabOrder = 4
+          TabStop = False
+          OnClick = btnCopiarDecSETClick
+        end
+        object btnCopiarDecTipos: TBitBtn
+          Left = 712
+          Top = 421
+          Width = 205
+          Height = 25
+          Caption = 'Copiar declara'#231#245'es TIPOS'
+          TabOrder = 5
+          TabStop = False
+          OnClick = btnCopiarDecTiposClick
+        end
       end
     end
     object pgCampos: TTabSheet
@@ -237,6 +265,36 @@ object FormClassGenerator: TFormClassGenerator
           ReadOnly = True
           ScrollBars = ssVertical
           TabOrder = 2
+        end
+        object btnCopiarFuncRetorna: TBitBtn
+          Left = 744
+          Top = 42
+          Width = 172
+          Height = 25
+          Caption = 'Copiar RETORNA'
+          TabOrder = 3
+          TabStop = False
+          OnClick = btnCopiarFuncRetornaClick
+        end
+        object btnCopiarFuncSet: TBitBtn
+          Left = 744
+          Top = 225
+          Width = 172
+          Height = 25
+          Caption = 'Copiar SET'
+          TabOrder = 4
+          TabStop = False
+          OnClick = btnCopiarFuncSetClick
+        end
+        object btnCopiarCamposPadrao: TBitBtn
+          Left = 744
+          Top = 409
+          Width = 172
+          Height = 25
+          Caption = 'Copiar CAMPOS PADR'#213'ES'
+          TabOrder = 5
+          TabStop = False
+          OnClick = btnCopiarCamposPadraoClick
         end
       end
     end
