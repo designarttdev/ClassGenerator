@@ -1,10 +1,10 @@
-unit Principal;
+﻿unit Principal;
 
 interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, System.RegularExpressions;
 
 type
   TFormClassGenerator = class(TForm)
@@ -65,16 +65,16 @@ function TFormClassGenerator.MapDBTypeToDelphi(const DBType: string): string;
 var
   T: string;
 begin
-  T := UpperCase(DBType);
-  if Pos('INTEGER', T) > 0 then
+  T := Trim(DBType).ToUpper; // garantir consistência
+
+  // Usando expressão regular para garantir que seja palavra isolada (\b = borda de palavra)
+  if TRegEx.IsMatch(T, '\bINTEGER\b') then
     Result := 'Integer'
-  else if (Pos('DOUBLE', T) > 0) or (Pos('FLOAT', T) > 0) or
-          (Pos('NUMERIC', T) > 0) or (Pos('DECIMAL', T) > 0) then
+  else if TRegEx.IsMatch(T, '\b(DOUBLE|FLOAT|NUMERIC|DECIMAL)\b') then
     Result := 'Double'
-  else if (Pos('CHAR', T) > 0) or (Pos('VARCHAR', T) > 0) or
-          (Pos('BLOB SUB_TYPE 1', T) > 0) then
+  else if TRegEx.IsMatch(T, '\b(CHAR|VARCHAR|BLOB)\b') then
     Result := 'String'
-  else if (Pos('DATE', T) > 0) or (Pos('TIMESTAMP', T) > 0) then
+  else if TRegEx.IsMatch(T, '\b(DATE|TIMESTAMP)\b') then
     Result := 'TDateTime'
   else
     Result := 'Variant';
@@ -108,38 +108,30 @@ begin
     Result[High(Result)].DataType := MapDBTypeToDelphi(FieldType);
   end;
 end;
-  Fields: TArray<TFieldInfo>;
-  FieldInfo: TFieldInfo;
-  FieldName, CamelName, TipoUnit, TipoInterface, FieldType, InputText: string;
-  InputText := Trim(MemoInput.Text);
-  if Pos('CREATE TABLE', UpperCase(InputText)) > 0 then
-    Fields := ParseDDL(InputText)
-  else
-  begin
-    InputFields := StringReplace(InputText.ToLower, sLineBreak, '', [rfReplaceAll]).Split([';']);
-    SetLength(Fields, Length(InputFields));
-    for I := 0 to High(InputFields) do
-    begin
-      Fields[I].Name := Trim(InputFields[I]);
-      Fields[I].DataType := Trim(edtTipo.Text);
-    end;
-  end;
-  for I := 0 to High(Fields) do
-    FieldInfo := Fields[I];
-    FieldName := FieldInfo.Name;
-    FieldType := FieldInfo.DataType;
-    MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
-    SetLine := Format('function Set%s(value: %s): %s;', [CamelName, FieldType, TipoInterface]);
-    SetLine := Format('function %s.Set%s(value: %s): %s;', [TipoUnit, CamelName, FieldType, TipoInterface]);
-    if UpperCase(FieldType) = 'STRING' then
-    RetornaLine := Format('function Retorna%s: %s;', [CamelName, FieldType]);
-    RetornaLine := Format('function %s.Retorna%s: %s;', [TipoUnit, CamelName, FieldType]);
-    if UpperCase(FieldType) = 'STRING' then
-    if UpperCase(FieldType) = 'STRING' then
-    else if (UpperCase(FieldType) = 'INTEGER') or (UpperCase(FieldType) = 'DOUBLE') then
-    else if (UpperCase(FieldType) = 'TDATETIME') or (UpperCase(FieldType) = 'TDATE') then
-end;
 
+// Funo para converter string em CamelCase completo com base nas "intenes" das palavras
+function TFormClassGenerator.ToCamelCase(const S: string): string;
+var
+  I: Integer;
+  Cleaned, ResultStr: string;
+  InWord: Boolean;
+begin
+  ResultStr := '';
+  Cleaned := StringReplace(S.Trim, '_', ' ', [rfReplaceAll]);
+  Cleaned := StringReplace(Cleaned, '-', ' ', [rfReplaceAll]);
+  Cleaned := StringReplace(Cleaned, '.', ' ', [rfReplaceAll]);
+  InWord := False;
+
+  for I := 1 to Length(Cleaned) do
+  begin
+    if (I = 1) or (Cleaned[I - 1] = ' ') then
+      ResultStr := ResultStr + UpCase(Cleaned[I])
+    else
+      ResultStr := ResultStr + Cleaned[I];
+  end;
+  // Remove espaos restantes
+  Result := StringReplace(ResultStr, ' ', '', [rfReplaceAll]);
+end;
 
 procedure TFormClassGenerator.LimpaCampos;
 begin
@@ -155,7 +147,9 @@ end;
 procedure TFormClassGenerator.ButtonGerarClick(Sender: TObject);
 var
   InputFields: TArray<string>;
-  FieldName, CamelName, TipoUnit, TipoInterface: string;
+  Fields: TArray<TFieldInfo>;
+  FieldInfo: TFieldInfo;
+  FieldName, CamelName, TipoUnit, TipoInterface, FieldType, InputText: string;
   I: Integer;
   SetLine, RetornaLine: string;
 begin
@@ -164,29 +158,40 @@ begin
   TipoUnit := 'T' + edtUnit.Text;
   TipoInterface := edtInterface.Text;
 
-  // Transforma os campos separados por ";" em itens de um array
-  InputFields := StringReplace(Trim(MemoInput.Text).ToLower, sLineBreak, '', [rfReplaceAll]).Split([';']);
-
-  for I := 0 to High(InputFields) do
+  InputText := Trim(MemoInput.Text);
+  if Pos('CREATE TABLE', UpperCase(InputText)) > 0 then
+    Fields := ParseDDL(InputText)
+  else
   begin
-    FieldName := Trim(InputFields[I]);
+    InputFields := StringReplace(InputText.ToLower, sLineBreak, '', [rfReplaceAll]).Split([';']);
+    SetLength(Fields, Length(InputFields));
+    for I := 0 to High(InputFields) do
+    begin
+      Fields[I].Name := Trim(InputFields[I]);
+      Fields[I].DataType := Trim(edtTipo.Text);
+    end;
+  end;
+
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    FieldName := FieldInfo.Name;
+    FieldType := FieldInfo.DataType;
     if FieldName = '' then Continue;
 
     CamelName := ToCamelCase(FieldName);
 
-    // Adiciona o campo com "F" e nome formatado
-    MemoCampos.Lines.Add('F' + CamelName + ': ' + Trim(edtTipo.Text) + ';'); // substitua "tipo" manualmente
+    MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
 
-    // Gera função Set
-    SetLine := Format('function Set%s(value: ' + Trim(edtTipo.Text) + '): %s;', [CamelName, TipoInterface]);
+    SetLine := Format('function Set%s(value: %s): %s;', [CamelName, FieldType, TipoInterface]);
     MemoDecSet.Lines.Add(SetLine);
 
-    SetLine := Format('function %s.Set%s(value: ' + Trim(edtTipo.Text) + '): %s;', [TipoUnit, CamelName, TipoInterface]);
+    SetLine := Format('function %s.Set%s(value: %s): %s;', [TipoUnit, CamelName, FieldType, TipoInterface]);
     MemoSet.Lines.Add(SetLine);
     MemoSet.Lines.Add('begin');
     MemoSet.Lines.Add('  Result := Self;');
 
-    if Trim(edtTipo.Text).ToUpper = 'String'.Trim.ToUpper then
+    if UpperCase(FieldType) = 'STRING' then
       MemoSet.Lines.Add('  F' + CamelName + ' := Trim(value).ToUpper;')
     else
       MemoSet.Lines.Add('  F' + CamelName + ' := value;');
@@ -194,15 +199,14 @@ begin
     MemoSet.Lines.Add('end;');
     MemoSet.Lines.Add('');
 
-    // Gera função Retorna
-    RetornaLine := Format('function Retorna%s: ' + Trim(edtTipo.Text) + ';', [CamelName]);
+    RetornaLine := Format('function Retorna%s: %s;', [CamelName, FieldType]);
     MemoDecRetorna.Lines.Add(RetornaLine);
 
-    RetornaLine := Format('function %s.Retorna%s: ' + Trim(edtTipo.Text) + ';', [TipoUnit, CamelName]);
+    RetornaLine := Format('function %s.Retorna%s: %s;', [TipoUnit, CamelName, FieldType]);
     MemoRetorna.Lines.Add(RetornaLine);
     MemoRetorna.Lines.Add('begin');
 
-    if Trim(edtTipo.Text).ToUpper = 'String'.Trim.ToUpper then
+    if UpperCase(FieldType) = 'STRING' then
       MemoRetorna.Lines.Add('  Result := Trim(F' + CamelName + ').ToUpper;')
     else
       MemoRetorna.Lines.Add('  Result := F' + CamelName + ';');
@@ -210,15 +214,11 @@ begin
     MemoRetorna.Lines.Add('end;');
     MemoRetorna.Lines.Add('');
 
-    if Trim(edtTipo.Text).ToUpper = 'String'.Trim.ToUpper then
+    if UpperCase(FieldType) = 'STRING' then
       MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ''''; ')
-    else
-    if (Trim(edtTipo.Text).ToUpper = 'integer'.Trim.ToUpper)
-      or (Trim(edtTipo.Text).ToUpper = 'double'.Trim.ToUpper) then
+    else if (UpperCase(FieldType) = 'INTEGER') or (UpperCase(FieldType) = 'DOUBLE') then
       MemoCamposPadrao.Lines.Add('F' + CamelName + ' := 0; ')
-    else
-    if (Trim(edtTipo.Text).ToUpper = 'TdateTime'.Trim.ToUpper)
-      or (Trim(edtTipo.Text).ToUpper = 'Tdate'.Trim.ToUpper) then
+    else if (UpperCase(FieldType) = 'TDATETIME') or (UpperCase(FieldType) = 'TDATE') then
       MemoCamposPadrao.Lines.Add('F' + CamelName + ' := EncodeDate(1900, 1, 1); ')
     else
       MemoCamposPadrao.Lines.Add('F' + CamelName + ' := null; ');
