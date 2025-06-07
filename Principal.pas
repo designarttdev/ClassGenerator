@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, System.RegularExpressions, StrUtils,
-  Vcl.Buttons;
+  Vcl.Buttons, Vcl.Clipbrd;
 
 type
   TFormClassGenerator = class(TForm)
@@ -43,12 +43,16 @@ type
     btnCopiarFuncRetorna: TBitBtn;
     btnCopiarFuncSet: TBitBtn;
     btnCopiarCamposPadrao: TBitBtn;
+    btnCopiarFuncs: TBitBtn;
+    btnCopiarDecInterface: TBitBtn;
     procedure btnCopiarCamposPadraoClick(Sender: TObject);
     procedure btnCopiarDecRetornaClick(Sender: TObject);
     procedure btnCopiarDecSETClick(Sender: TObject);
     procedure btnCopiarDecTiposClick(Sender: TObject);
     procedure btnCopiarFuncRetornaClick(Sender: TObject);
     procedure btnCopiarFuncSetClick(Sender: TObject);
+    procedure btnCopiarFuncsClick(Sender: TObject);
+    procedure btnCopiarDecInterfaceClick(Sender: TObject);
     procedure ButtonGerarClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
   private
@@ -64,6 +68,7 @@ type
     function ToCamelCase(const S: string): string;
     procedure LimpaCampos;
     procedure CopiaMemo(AMemo : TMemo);
+    procedure CopiaMemos(const AMemos: array of TMemo);
   public
     { Public declarations }
   end;
@@ -104,6 +109,16 @@ end;
 procedure TFormClassGenerator.btnCopiarFuncSetClick(Sender: TObject);
 begin
   CopiaMemo(MemoSet);
+end;
+
+procedure TFormClassGenerator.btnCopiarFuncsClick(Sender: TObject);
+begin
+  CopiaMemos([MemoRetorna, MemoSet]);
+end;
+
+procedure TFormClassGenerator.btnCopiarDecInterfaceClick(Sender: TObject);
+begin
+  CopiaMemos([MemoDecRetorna, MemoDecSet]);
 end;
 
 function TFormClassGenerator.MapDBTypeToDelphi(const DBType: string): string;
@@ -422,6 +437,22 @@ procedure TFormClassGenerator.CopiaMemo(AMemo : TMemo);
 begin
   AMemo.SelectAll;
   AMemo.CopyToClipboard;
+  ShowMessage('Copiado');
+end;
+
+procedure TFormClassGenerator.CopiaMemos(const AMemos: array of TMemo);
+var
+  Combined: string;
+  I: Integer;
+begin
+  Combined := '';
+  for I := Low(AMemos) to High(AMemos) do
+  begin
+    if Combined <> '' then
+      Combined := Combined + sLineBreak;
+    Combined := Combined + AMemos[I].Lines.Text;
+  end;
+  Clipboard.AsText := Combined;
   ShowMessage('Copiado');
 end;
 end.

@@ -203,6 +203,16 @@ object FormClassGenerator: TFormClassGenerator
           TabStop = False
           OnClick = btnCopiarDecTiposClick
         end
+        object btnCopiarDecInterface: TBitBtn
+          Left = 712
+          Top = 566
+          Width = 205
+          Height = 25
+          Caption = 'Copiar declara'#231#245'es INTERFACE'
+          TabOrder = 6
+          TabStop = False
+          OnClick = btnCopiarDecInterfaceClick
+        end
       end
     end
     object pgCampos: TTabSheet
@@ -295,6 +305,16 @@ object FormClassGenerator: TFormClassGenerator
           TabOrder = 5
           TabStop = False
           OnClick = btnCopiarCamposPadraoClick
+        end
+        object btnCopiarFuncs: TBitBtn
+          Left = 744
+          Top = 566
+          Width = 172
+          Height = 25
+          Caption = 'Copiar FUN'#199#213'ES'
+          TabOrder = 6
+          TabStop = False
+          OnClick = btnCopiarFuncsClick
         end
       end
     end
