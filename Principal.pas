@@ -270,9 +270,9 @@ begin
   for I := 1 to Length(Cleaned) do
   begin
     if (I = 1) or (Cleaned[I - 1] = ' ') then
-      ResultStr := ResultStr + UpCase(Cleaned[I])
+      ResultStr := ResultStr + Trim(Cleaned[I]).ToUpper
     else
-      ResultStr := ResultStr + Cleaned[I];
+      ResultStr := ResultStr + Trim(Cleaned[I]).ToLower;
   end;
   // Remove espaos restantes
   Result := StringReplace(ResultStr, ' ', '', [rfReplaceAll]);
