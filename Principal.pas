@@ -256,25 +256,22 @@ end;
 // Funo para converter string em CamelCase completo com base nas "intenes" das palavras
 function TFormClassGenerator.ToCamelCase(const S: string): string;
 var
-  I: Integer;
-  Cleaned, ResultStr: string;
-  InWord: Boolean;
+  Parts: TArray<string>;
+  Part, Cleaned: string;
 begin
-  ResultStr := '';
   Cleaned := StringReplace(S.Trim, '_', ' ', [rfReplaceAll]);
   Cleaned := StringReplace(Cleaned, '-', ' ', [rfReplaceAll]);
   Cleaned := StringReplace(Cleaned, '.', ' ', [rfReplaceAll]);
-  InWord := False;
 
-  for I := 1 to Length(Cleaned) do
+  Parts := Cleaned.Split([' ']);
+  Result := '';
+  for Part in Parts do
   begin
-    if (I = 1) or (Cleaned[I - 1] = ' ') then
-      ResultStr := ResultStr + UpCase(Cleaned[I])
-    else
-      ResultStr := ResultStr + Cleaned[I];
+    if Part = '' then
+      Continue;
+    Part := LowerCase(Part);
+    Result := Result + UpCase(Part[1]) + Copy(Part, 2, MaxInt);
   end;
-  // Remove espaos restantes
-  Result := StringReplace(ResultStr, ' ', '', [rfReplaceAll]);
 end;
 
 procedure TFormClassGenerator.LimpaCampos;
