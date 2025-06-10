@@ -11,8 +11,10 @@ object FormClassGenerator: TFormClassGenerator
   Font.Name = 'Tahoma'
   Font.Style = []
   KeyPreview = True
+  OldCreateOrder = True
   Position = poScreenCenter
   OnShow = FormShow
+  PixelsPerInch = 96
   TextHeight = 13
   object PageControl1: TPageControl
     Left = 0
@@ -87,8 +89,8 @@ object FormClassGenerator: TFormClassGenerator
           Width = 193
           Height = 21
           TabOrder = 2
-          Text = 'IProduto'
-          TextHint = 'IProdutos'
+          Text = 'Produto'
+          TextHint = 'Produtos'
         end
         object edtTipo: TEdit
           Left = 492

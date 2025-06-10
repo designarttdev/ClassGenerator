@@ -303,8 +303,8 @@ var
 begin
   LimpaCampos;
 
-  TipoUnit := 'T' + Trim(edtUnit.Text).ToUpper;
-  TipoInterface := Trim(edtInterface.Text).ToUpper;
+  TipoUnit := 'T' + ToCamelCase(Trim(edtUnit.Text).ToUpper);
+  TipoInterface := 'I' + ToCamelCase(Trim(edtInterface.Text).ToUpper);
 
   InputText := Trim(MemoInput.Text);
   IsDDL := Pos('CREATE TABLE', UpperCase(InputText)) > 0;
