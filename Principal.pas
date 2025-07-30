@@ -496,7 +496,7 @@ var
   I: Integer;
   FieldInfo: TFieldInfo;
   CamelName, FieldName: string;
-  SqlInsert, SqlValues, SqlParams: string;
+  SqlParams: string;
 begin
   Result := '';
   
@@ -511,28 +511,56 @@ begin
   Result := Result + '    vQuery.Close;' + sLineBreak;
   Result := Result + '    vQuery.SQL.Clear;' + sLineBreak;
   
-  // Montando o SQL INSERT
-  SqlInsert := '    vQuery.SQL.Add(''INSERT INTO ' + NomeTabela.ToUpper + ' (';
-  SqlValues := '    vQuery.SQL.Add(''VALUES (';
-  SqlParams := '';
+  // Montando o SQL INSERT com campos organizados em linhas
+  Result := Result + '    vQuery.SQL.Add(''INSERT INTO ' + NomeTabela.ToUpper + ' ('');' + sLineBreak;
   
-  // Adicionando campos ao SQL
+  // Adicionando cada campo em uma linha separada
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    FieldName := FieldInfo.Name.ToUpper;
+    
+    if I = 0 then
+      Result := Result + '    vQuery.SQL.Add(''  ' + FieldName
+    else
+      Result := Result + '    vQuery.SQL.Add('', ' + FieldName;
+    
+    if I = High(Fields) then
+      Result := Result + ''');' + sLineBreak
+    else
+      Result := Result + ''');' + sLineBreak;
+  end;
+  
+  // Montando a parte VALUES com parâmetros organizados em linhas
+  Result := Result + '    vQuery.SQL.Add(''VALUES ('');' + sLineBreak;
+  
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    FieldName := FieldInfo.Name.ToUpper;
+    
+    if I = 0 then
+      Result := Result + '    vQuery.SQL.Add(''  :' + FieldName
+    else
+      Result := Result + '    vQuery.SQL.Add('', :' + FieldName;
+    
+    if I = High(Fields) then
+      Result := Result + ''');' + sLineBreak
+    else
+      Result := Result + ''');' + sLineBreak;
+  end;
+  
+  Result := Result + sLineBreak;
+  
+  // Adicionando parâmetros organizados
+  SqlParams := '';
   for I := 0 to High(Fields) do
   begin
     FieldInfo := Fields[I];
     FieldName := FieldInfo.Name.ToUpper;
     CamelName := ToCamelCase(FieldInfo.Name);
     
-    if I > 0 then
-    begin
-      SqlInsert := SqlInsert + ', ';
-      SqlValues := SqlValues + ', ';
-    end;
-    
-    SqlInsert := SqlInsert + FieldName;
-    SqlValues := SqlValues + ':' + FieldName;
-    
-    // Adicionando parâmetros
+    // Adicionando parâmetros com identação correta
     SqlParams := SqlParams + '    vQuery.ParamByName(''' + FieldName + ''')';
     
     if UpperCase(FieldInfo.DataType) = 'INTEGER' then
@@ -549,13 +577,7 @@ begin
     SqlParams := SqlParams + ' := Retorna' + CamelName + ';' + sLineBreak;
   end;
   
-  SqlInsert := SqlInsert + ')'';';
-  SqlValues := SqlValues + ')'';';
-  
-  // Adicionando o SQL ao resultado
-  Result := Result + SqlInsert + sLineBreak;
-  Result := Result + SqlValues + sLineBreak;
-  Result := Result + sLineBreak;
+  // Adicionando os parâmetros ao resultado
   Result := Result + SqlParams;
   Result := Result + '    vQuery.ExecSQL;' + sLineBreak;
   Result := Result + '  finally' + sLineBreak;
