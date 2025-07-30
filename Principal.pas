@@ -45,6 +45,11 @@ type
     btnCopiarCamposPadrao: TBitBtn;
     btnCopiarFuncs: TBitBtn;
     btnCopiarDecInterface: TBitBtn;
+    TabSheet2: TTabSheet;
+    ScrollBox4: TScrollBox;
+    Label11: TLabel;
+    MemoUnitCompleta: TMemo;
+    btnCopiarUnitCompleta: TBitBtn;
     procedure btnCopiarCamposPadraoClick(Sender: TObject);
     procedure btnCopiarDecRetornaClick(Sender: TObject);
     procedure btnCopiarDecSETClick(Sender: TObject);
@@ -53,6 +58,7 @@ type
     procedure btnCopiarFuncSetClick(Sender: TObject);
     procedure btnCopiarFuncsClick(Sender: TObject);
     procedure btnCopiarDecInterfaceClick(Sender: TObject);
+    procedure btnCopiarUnitCompletaClick(Sender: TObject);
     procedure ButtonGerarClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
   private
@@ -69,6 +75,8 @@ type
     procedure LimpaCampos;
     procedure CopiaMemo(AMemo : TMemo);
     procedure CopiaMemos(const AMemos: array of TMemo);
+    procedure GerarUnitCompleta(const Fields: TArray<TFieldInfo>; const TipoUnit, TipoInterface, NomeTabela: string);
+    function GerarProcedureInserir(const Fields: TArray<TFieldInfo>; const TipoUnit, NomeTabela: string): string;
   public
     { Public declarations }
   end;
@@ -89,6 +97,11 @@ end;
 procedure TFormClassGenerator.btnCopiarDecInterfaceClick(Sender: TObject);
 begin
   CopiaMemos([MemoDecRetorna, MemoDecSet]);
+end;
+
+procedure TFormClassGenerator.btnCopiarUnitCompletaClick(Sender: TObject);
+begin
+  CopiaMemo(MemoUnitCompleta);
 end;
 
 
@@ -128,7 +141,7 @@ var
 begin
   T := Trim(DBType).ToUpper; // garantir consistência
 
-  // Usando expressão regular para garantir que seja palavra isolada (\b = borda de palavra)
+  // Using regular expression to ensure isolated word matching (\b = word boundary)
   if TRegEx.IsMatch(T, '\bINTEGER\b') then
     Result := 'Integer'
   else if TRegEx.IsMatch(T, '\b(DOUBLE|FLOAT|NUMERIC|DECIMAL)\b') then
@@ -145,8 +158,9 @@ function TFormClassGenerator.ParseDDL(const AText: string): TArray<TFieldInfo>;
 var
   Lines: TArray<string>;
   L, Line, FieldName, FieldDef, FieldType, RestDef: string;
-  P, DefaultPos, NotNullPos, NullPos: Integer;
-  DefaultValue: string;
+  P, DefaultPos, NotNullPos, NullPos, DefCutPos: Integer;
+  DefaultValue, TempValue: string;
+  ClosePos, CutPos, StopPos: Integer;
 begin
   Lines := AText.Replace(#13#10, #10).Replace(#13, #10).Split([#10]);
 
@@ -193,9 +207,8 @@ begin
       // Se for string com aspas
       if (Length(RestDef) > 0) and (RestDef[1] = '''') then
       begin
-        var TempValue: string;
         TempValue := Copy(RestDef, 2, MaxInt);
-        var ClosePos := Pos('''', TempValue);
+        ClosePos := Pos('''', TempValue);
         if ClosePos > 0 then
           DefaultValue := '''' + Copy(TempValue, 1, ClosePos - 1) + ''''
         else
@@ -207,7 +220,7 @@ begin
         NotNullPos := Pos(' NOT NULL', UpperCase(RestDef));
         NullPos := Pos(' NULL', UpperCase(RestDef));
 
-        var CutPos := 0;
+        CutPos := 0;
         if (NotNullPos > 0) and ((CutPos = 0) or (NotNullPos < CutPos)) then
           CutPos := NotNullPos;
         if (NullPos > 0) and ((CutPos = 0) or (NullPos < CutPos)) then
@@ -217,7 +230,7 @@ begin
           DefaultValue := Trim(Copy(RestDef, 1, CutPos - 1))
         else
         begin
-          var StopPos := Pos(' ', RestDef);
+          StopPos := Pos(' ', RestDef);
           if StopPos > 0 then
             DefaultValue := Trim(Copy(RestDef, 1, StopPos - 1))
           else
@@ -230,7 +243,7 @@ begin
 
     // Agora pegar o tipo — tudo que vem antes de DEFAULT/NOT NULL/NULL
     // Primeiro, vamos cortar a definição no DEFAULT ou NOT NULL ou NULL
-    var DefCutPos := Length(FieldDef) + 1; // valor alto por padrão
+    DefCutPos := Length(FieldDef) + 1; // valor alto por padrão
 
     P := Pos(' DEFAULT ', UpperCase(FieldDef));
     if (P > 0) and (P < DefCutPos) then DefCutPos := P;
@@ -286,6 +299,7 @@ begin
   MemoCamposPadrao.Clear;
   MemoDecRetorna.Clear;
   MemoDecSet.Clear;
+  MemoUnitCompleta.Clear;
 end;
 
 // Evento que executa a geração
@@ -295,8 +309,8 @@ var
   Fields: TArray<TFieldInfo>;
   FieldInfo: TFieldInfo;
   FieldName, CamelName, TipoUnit, TipoInterface, FieldType, InputText: string;
-  DefaultValue, Entry: string;
-  I, DefaultPos, NotNullPos: Integer;
+  DefaultValue, Entry, NomeTabela, TempText: string;
+  I, DefaultPos, NotNullPos, TablePos, SpacePos, ParenPos: Integer;
   FieldTokens: TArray<string>;
   SetLine, RetornaLine: string;
   IsDDL: Boolean;
@@ -308,6 +322,37 @@ begin
 
   InputText := Trim(MemoInput.Text);
   IsDDL := Pos('CREATE TABLE', UpperCase(InputText)) > 0;
+  
+  // Extraindo o nome da tabela da DDL
+  NomeTabela := '';
+  if IsDDL then
+  begin
+    TablePos := Pos('CREATE TABLE', UpperCase(InputText));
+    if TablePos > 0 then
+    begin
+      TempText := Copy(InputText, TablePos + Length('CREATE TABLE'), Length(InputText));
+      TempText := Trim(TempText);
+      SpacePos := Pos(' ', TempText);
+      ParenPos := Pos('(', TempText);
+      
+      if (SpacePos > 0) and ((ParenPos = 0) or (SpacePos < ParenPos)) then
+        NomeTabela := Trim(Copy(TempText, 1, SpacePos - 1))
+      else if ParenPos > 0 then
+        NomeTabela := Trim(Copy(TempText, 1, ParenPos - 1))
+      else
+        NomeTabela := TempText;
+        
+      // Removendo caracteres especiais do nome da tabela
+      NomeTabela := StringReplace(NomeTabela, '"', '', [rfReplaceAll]);
+      NomeTabela := StringReplace(NomeTabela, '`', '', [rfReplaceAll]);
+      NomeTabela := StringReplace(NomeTabela, '[', '', [rfReplaceAll]);
+      NomeTabela := StringReplace(NomeTabela, ']', '', [rfReplaceAll]);
+    end;
+  end;
+  
+  // Se não conseguiu extrair da DDL, usa o nome da unit
+  if NomeTabela = '' then
+    NomeTabela := Trim(edtUnit.Text);
 
   if IsDDL then
   begin
@@ -363,10 +408,10 @@ begin
 
     CamelName := ToCamelCase(FieldName);
 
-    // Geração dos campos privados
+      // Geração dos campos privados
     MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
 
-    // Geração do Set
+    // Geração das declarações e implementações dos métodos Set
     SetLine := Format(
       'function Set%s(value: %s): %s;',
       [CamelName, FieldType, TipoInterface]
@@ -389,7 +434,7 @@ begin
     MemoSet.Lines.Add('end;');
     MemoSet.Lines.Add('');
 
-    // Geração do Retorna
+    // Geração das declarações e implementações dos métodos Retorna
     RetornaLine := Format(
       'function Retorna%s: %s;',
       [CamelName, FieldType]
@@ -424,12 +469,16 @@ begin
       MemoCamposPadrao.Lines.Add('F' + CamelName + ' := null; ');
   end;
 
+  // Gerando a unit completa
+  GerarUnitCompleta(Fields, TipoUnit, TipoInterface, NomeTabela);
+
   Application.MessageBox('Gerado com sucesso!', 'Sucesso!', MB_OK + MB_ICONINFORMATION);
-  PageControl1.TabIndex := 1;
+  PageControl1.TabIndex := 2; // Mudando para a aba da unit completa
 end;
 
 procedure TFormClassGenerator.FormShow(Sender: TObject);
 begin
+  Randomize; // Inicializa o gerador de números aleatórios
   LimpaCampos;
   PageControl1.TabIndex := 0;
 end;
@@ -439,6 +488,260 @@ begin
   AMemo.SelectAll;
   AMemo.CopyToClipboard;
   ShowMessage('Copiado');
+end;
+
+// Método para gerar a procedure Inserir automaticamente
+function TFormClassGenerator.GerarProcedureInserir(const Fields: TArray<TFieldInfo>; const TipoUnit, NomeTabela: string): string;
+var
+  I: Integer;
+  FieldInfo: TFieldInfo;
+  CamelName, FieldName: string;
+  SqlInsert, SqlValues, SqlParams: string;
+begin
+  Result := '';
+  
+  // Início da procedure
+  Result := Result + 'procedure ' + TipoUnit + '.Inserir;' + sLineBreak;
+  Result := Result + 'var' + sLineBreak;
+  Result := Result + '  vQuery : TFDQuery;' + sLineBreak;
+  Result := Result + 'begin' + sLineBreak;
+  Result := Result + '  vQuery := TFDQuery.Create(nil);' + sLineBreak;
+  Result := Result + '  try' + sLineBreak;
+  Result := Result + '    vQuery.Connection := FConexao;' + sLineBreak;
+  Result := Result + '    vQuery.Close;' + sLineBreak;
+  Result := Result + '    vQuery.SQL.Clear;' + sLineBreak;
+  
+  // Montando o SQL INSERT
+  SqlInsert := '    vQuery.SQL.Add(''INSERT INTO ' + NomeTabela.ToUpper + ' (';
+  SqlValues := '    vQuery.SQL.Add(''VALUES (';
+  SqlParams := '';
+  
+  // Adicionando campos ao SQL
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    FieldName := FieldInfo.Name.ToUpper;
+    CamelName := ToCamelCase(FieldInfo.Name);
+    
+    if I > 0 then
+    begin
+      SqlInsert := SqlInsert + ', ';
+      SqlValues := SqlValues + ', ';
+    end;
+    
+    SqlInsert := SqlInsert + FieldName;
+    SqlValues := SqlValues + ':' + FieldName;
+    
+    // Adicionando parâmetros
+    SqlParams := SqlParams + '    vQuery.ParamByName(''' + FieldName + ''')';
+    
+    if UpperCase(FieldInfo.DataType) = 'INTEGER' then
+      SqlParams := SqlParams + '.AsInteger'
+    else if UpperCase(FieldInfo.DataType) = 'DOUBLE' then
+      SqlParams := SqlParams + '.AsFloat'
+    else if UpperCase(FieldInfo.DataType) = 'TDATETIME' then
+      SqlParams := SqlParams + '.AsDateTime'
+    else if UpperCase(FieldInfo.DataType) = 'STRING' then
+      SqlParams := SqlParams + '.AsString'
+    else
+      SqlParams := SqlParams + '.AsVariant';
+    
+    SqlParams := SqlParams + ' := Retorna' + CamelName + ';' + sLineBreak;
+  end;
+  
+  SqlInsert := SqlInsert + ')'';';
+  SqlValues := SqlValues + ')'';';
+  
+  // Adicionando o SQL ao resultado
+  Result := Result + SqlInsert + sLineBreak;
+  Result := Result + SqlValues + sLineBreak;
+  Result := Result + sLineBreak;
+  Result := Result + SqlParams;
+  Result := Result + '    vQuery.ExecSQL;' + sLineBreak;
+  Result := Result + '  finally' + sLineBreak;
+  Result := Result + '    FreeAndNil(vQuery);' + sLineBreak;
+  Result := Result + '  end;' + sLineBreak;
+  Result := Result + 'end;' + sLineBreak;
+  
+  Result := Result + sLineBreak;
+end;
+
+// Método para gerar a unit completa baseada no modelo uAidf
+procedure TFormClassGenerator.GerarUnitCompleta(const Fields: TArray<TFieldInfo>; const TipoUnit, TipoInterface, NomeTabela: string);
+var
+  I: Integer;
+  FieldInfo: TFieldInfo;
+  CamelName, FieldType: string;
+  UnitContent: string;
+  GUID: string;
+begin
+  // Gerando um GUID único para a interface
+  GUID := Format('{%.8X-%.4X-%.4X-%.4X-%.12X}', [
+    Random(MaxInt), Random(65536), Random(65536), Random(65536), Random(MaxInt)
+  ]);
+  
+  UnitContent := '';
+  
+  // Cabeçalho da unit
+  UnitContent := UnitContent + 'unit u' + TipoUnit.Substring(1) + ';' + sLineBreak + sLineBreak;
+  UnitContent := UnitContent + 'interface' + sLineBreak + sLineBreak;
+  UnitContent := UnitContent + 'uses' + sLineBreak;
+  UnitContent := UnitContent + '  System.SysUtils, FireDAC.Comp.Client;' + sLineBreak + sLineBreak;
+  UnitContent := UnitContent + 'type' + sLineBreak;
+  
+  // Declaração da interface
+  UnitContent := UnitContent + '  ' + TipoInterface + ' = interface' + sLineBreak;
+  UnitContent := UnitContent + '  [''' + GUID + ''']' + sLineBreak + sLineBreak;
+  
+  // Métodos Retorna da interface
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    UnitContent := UnitContent + '  function Retorna' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+  end;
+  
+  UnitContent := UnitContent + sLineBreak;
+  
+  // Métodos Set da interface
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    UnitContent := UnitContent + '  function Set' + CamelName + '(value: ' + FieldType + '): ' + TipoInterface + ';' + sLineBreak;
+  end;
+  
+  UnitContent := UnitContent + sLineBreak + '  procedure Inserir;' + sLineBreak;
+  UnitContent := UnitContent + '  end;' + sLineBreak + sLineBreak;
+  
+  // Declaração da classe
+  UnitContent := UnitContent + '  ' + TipoUnit + ' = class(TInterfacedObject, ' + TipoInterface + ')' + sLineBreak;
+  UnitContent := UnitContent + '  private' + sLineBreak;
+  UnitContent := UnitContent + '    FConexao : TFDCustomConnection;' + sLineBreak + sLineBreak;
+  
+  // Campos privados
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    UnitContent := UnitContent + '    F' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+  end;
+  
+  UnitContent := UnitContent + sLineBreak + '    constructor Create(Conexao : TFDConnection);' + sLineBreak + sLineBreak;
+  UnitContent := UnitContent + '  public' + sLineBreak + sLineBreak;
+  UnitContent := UnitContent + '    Destructor Destroy; Override;' + sLineBreak;
+  UnitContent := UnitContent + '    Class Function New(Conexao : TFDConnection): ' + TipoInterface + ';' + sLineBreak + sLineBreak;
+  
+  // Declarações públicas dos métodos Retorna
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    UnitContent := UnitContent + '    function Retorna' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+  end;
+  
+  UnitContent := UnitContent + sLineBreak;
+  
+  // Declarações públicas dos métodos Set
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    UnitContent := UnitContent + '    function Set' + CamelName + '(value: ' + FieldType + '): ' + TipoInterface + ';' + sLineBreak;
+  end;
+  
+  UnitContent := UnitContent + sLineBreak + '    procedure Inserir;' + sLineBreak;
+  UnitContent := UnitContent + '  end;' + sLineBreak + sLineBreak;
+  
+  // Seção implementation
+  UnitContent := UnitContent + 'implementation' + sLineBreak + sLineBreak;
+  
+  // Implementação dos métodos Retorna
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    
+    UnitContent := UnitContent + 'function ' + TipoUnit + '.Retorna' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+    UnitContent := UnitContent + 'begin' + sLineBreak;
+    
+    if UpperCase(FieldType) = 'STRING' then
+      UnitContent := UnitContent + '  Result := Trim(F' + CamelName + ').ToUpper;' + sLineBreak
+    else
+      UnitContent := UnitContent + '  Result := F' + CamelName + ';' + sLineBreak;
+      
+    UnitContent := UnitContent + 'end;' + sLineBreak + sLineBreak;
+  end;
+  
+  // Constructor
+  UnitContent := UnitContent + 'constructor ' + TipoUnit + '.Create(Conexao : TFDConnection);' + sLineBreak;
+  UnitContent := UnitContent + 'begin' + sLineBreak;
+  UnitContent := UnitContent + '  FConexao := Conexao;' + sLineBreak + sLineBreak;
+  
+  // Inicialização dos campos no constructor
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    
+    if FieldInfo.DefaultValue <> '' then
+      UnitContent := UnitContent + '  F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';' + sLineBreak
+    else if UpperCase(FieldType) = 'STRING' then
+      UnitContent := UnitContent + '  F' + CamelName + ' := '''';' + sLineBreak
+    else if (UpperCase(FieldType) = 'INTEGER') or (UpperCase(FieldType) = 'DOUBLE') then
+      UnitContent := UnitContent + '  F' + CamelName + ' := 0;' + sLineBreak
+    else if UpperCase(FieldType) = 'TDATETIME' then
+      UnitContent := UnitContent + '  F' + CamelName + ' := EncodeDate(1900, 1, 1);' + sLineBreak;
+  end;
+  
+  UnitContent := UnitContent + sLineBreak + 'end;' + sLineBreak + sLineBreak;
+  
+  // Destructor
+  UnitContent := UnitContent + 'destructor ' + TipoUnit + '.Destroy;' + sLineBreak;
+  UnitContent := UnitContent + 'begin' + sLineBreak;
+  UnitContent := UnitContent + '  inherited;' + sLineBreak;
+  UnitContent := UnitContent + 'end;' + sLineBreak + sLineBreak;
+  
+  // Procedure Inserir
+  UnitContent := UnitContent + GerarProcedureInserir(Fields, TipoUnit, NomeTabela);
+  
+  // Método New
+  UnitContent := UnitContent + 'class function ' + TipoUnit + '.New(Conexao : TFDConnection): ' + TipoInterface + ';' + sLineBreak;
+  UnitContent := UnitContent + 'begin' + sLineBreak;
+  UnitContent := UnitContent + '  Result := Self.Create(Conexao);' + sLineBreak;
+  UnitContent := UnitContent + 'end;' + sLineBreak + sLineBreak;
+  
+  // Implementação dos métodos Set
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    
+    UnitContent := UnitContent + 'function ' + TipoUnit + '.Set' + CamelName + '(value: ' + FieldType + '): ' + TipoInterface + ';' + sLineBreak;
+    UnitContent := UnitContent + 'begin' + sLineBreak;
+    UnitContent := UnitContent + '  Result := Self;' + sLineBreak;
+    
+    if UpperCase(FieldType) = 'STRING' then
+      UnitContent := UnitContent + '  F' + CamelName + ' := Trim(value).ToUpper;' + sLineBreak
+    else
+      UnitContent := UnitContent + '  F' + CamelName + ' := value;' + sLineBreak;
+      
+    UnitContent := UnitContent + 'end;' + sLineBreak + sLineBreak;
+  end;
+  
+  // Final da unit
+  UnitContent := UnitContent + 'end.' + sLineBreak;
+  
+  // Colocando o conteúdo no memo
+  MemoUnitCompleta.Lines.Text := UnitContent;
 end;
 
 procedure TFormClassGenerator.CopiaMemos(const AMemos: array of TMemo);

@@ -11,17 +11,15 @@ object FormClassGenerator: TFormClassGenerator
   Font.Name = 'Tahoma'
   Font.Style = []
   KeyPreview = True
-  OldCreateOrder = True
   Position = poScreenCenter
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object PageControl1: TPageControl
     Left = 0
     Top = 0
     Width = 945
     Height = 622
-    ActivePage = pgPrincipal
+    ActivePage = TabSheet2
     Align = alClient
     TabOrder = 0
     object pgPrincipal: TTabSheet
@@ -114,7 +112,7 @@ object FormClassGenerator: TFormClassGenerator
     end
     object TabSheet1: TTabSheet
       Caption = 'Declara'#231#245'es'
-      ImageIndex = 2
+      ImageIndex = 1
       object ScrollBox3: TScrollBox
         Left = 0
         Top = 0
@@ -178,7 +176,7 @@ object FormClassGenerator: TFormClassGenerator
           Top = 29
           Width = 205
           Height = 25
-          Caption = 'Copiar declara'#231#245'es RETORNA'
+          Caption = 'Copiar Declara'#231#245'es RETORNA'
           TabOrder = 3
           TabStop = False
           OnClick = btnCopiarDecRetornaClick
@@ -188,7 +186,7 @@ object FormClassGenerator: TFormClassGenerator
           Top = 225
           Width = 205
           Height = 25
-          Caption = 'Copiar declara'#231#245'es SET'
+          Caption = 'Copiar Declara'#231#245'es SET'
           TabOrder = 4
           TabStop = False
           OnClick = btnCopiarDecSETClick
@@ -198,7 +196,7 @@ object FormClassGenerator: TFormClassGenerator
           Top = 421
           Width = 205
           Height = 25
-          Caption = 'Copiar declara'#231#245'es TIPOS'
+          Caption = 'Copiar Declara'#231#245'es TIPOS'
           TabOrder = 5
           TabStop = False
           OnClick = btnCopiarDecTiposClick
@@ -208,10 +206,51 @@ object FormClassGenerator: TFormClassGenerator
           Top = 566
           Width = 205
           Height = 25
-          Caption = 'Copiar declara'#231#245'es INTERFACE'
+          Caption = 'Copiar Declara'#231#245'es INTERFACE'
           TabOrder = 6
           TabStop = False
           OnClick = btnCopiarDecInterfaceClick
+        end
+      end
+    end
+    object TabSheet2: TTabSheet
+      Caption = 'Unit Completa'
+      ImageIndex = 2
+      object ScrollBox4: TScrollBox
+        Left = 0
+        Top = 0
+        Width = 937
+        Height = 594
+        Align = alClient
+        BevelInner = bvNone
+        BevelOuter = bvNone
+        BorderStyle = bsNone
+        TabOrder = 0
+        object Label11: TLabel
+          Left = 20
+          Top = 14
+          Width = 67
+          Height = 13
+          Caption = 'Unit Completa'
+        end
+        object MemoUnitCompleta: TMemo
+          Left = 20
+          Top = 29
+          Width = 897
+          Height = 520
+          ReadOnly = True
+          ScrollBars = ssVertical
+          TabOrder = 0
+        end
+        object btnCopiarUnitCompleta: TBitBtn
+          Left = 712
+          Top = 555
+          Width = 205
+          Height = 25
+          Caption = 'Copiar Unit Completa'
+          TabOrder = 1
+          TabStop = False
+          OnClick = btnCopiarUnitCompletaClick
         end
       end
     end
