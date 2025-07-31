@@ -1,0 +1,53 @@
+EXEMPLO DE USO DA NOVA FUNCIONALIDADE - INSERT PARA VALORES PADRÃO
+================================================================
+
+1. COLE A DDL NO PRIMEIRO MEMO (MemoInput):
+-------------------------------------------
+
+CREATE TABLE ESTADOS (
+    CODIGO INTEGER NOT NULL,
+    DESCRICAO VARCHAR(50),
+    SIGLA VARCHAR(2),
+    ALIQICMSENTRADA DOUBLE,
+    ALIQICMSSAIDA DOUBLE,
+    INSCSUBTRIB VARCHAR(20),
+    ALIQICMSENTRADACPF DOUBLE,
+    ALIQICMSSAIDACPF DOUBLE,
+    CODIGOEMP INTEGER,
+    CODUF_IBGE INTEGER,
+    ALIQPOBREZA DOUBLE,
+    ALIQMVA DOUBLE,
+    PERCFRETE DOUBLE,
+    CODRECEITAST VARCHAR(10),
+    CODRECEITADIFAL VARCHAR(10),
+    CALCULOBASEDIFALDOUSUTRI VARCHAR(1)
+);
+
+2. COLE O INSERT NO SEGUNDO MEMO (MemoInsert):
+----------------------------------------------
+
+INSERT INTO ESTADOS ( 
+    CODIGO, DESCRICAO, SIGLA, ALIQICMSENTRADA, ALIQICMSSAIDA, INSCSUBTRIB, ALIQICMSENTRADACPF, 
+    ALIQICMSSAIDACPF, CODIGOEMP, CODUF_IBGE, ALIQPOBREZA, ALIQMVA, PERCFRETE, CODRECEITAST, 
+    CODRECEITADIFAL, CALCULOBASEDIFALDOUSUTRI) 
+VALUES ( 
+    1, 'MINAS GERAIS', 'MG', 0, 0, '', 0, 0, 2, 31, 0, 0, 0, '', '', 'N');
+
+3. RESULTADO ESPERADO:
+---------------------
+
+Os campos da classe gerada terão os valores do INSERT como padrão:
+- FCodigo := 1;
+- FDescricao := 'MINAS GERAIS';
+- FSigla := 'MG';
+- FAliqicmsentrada := 0;
+- FAliqicmssaida := 0;
+- FInscsubtrib := '';
+- etc...
+
+OBSERVAÇÕES:
+- Se um campo já tem DEFAULT na DDL, o valor da DDL tem prioridade
+- Se o campo não tem DEFAULT na DDL, será usado o valor do INSERT
+- Se não há INSERT fornecido, usa os valores padrão normais (0, '', etc.)
+- Strings mantêm as aspas simples automaticamente
+- Números são usados diretamente

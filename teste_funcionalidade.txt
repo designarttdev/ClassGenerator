@@ -1,0 +1,45 @@
+TESTE ESPECÍFICO - VERIFICAÇÃO DA FUNCIONALIDADE
+==============================================
+
+TESTE 1: DDL + INSERT
+---------------------
+
+DDL (Cole no primeiro memo):
+CREATE TABLE TESTE (
+    ID INTEGER NOT NULL,
+    NOME VARCHAR(50),
+    IDADE INTEGER,
+    ATIVO VARCHAR(1)
+);
+
+INSERT (Cole no segundo memo):
+INSERT INTO TESTE (ID, NOME, IDADE, ATIVO) VALUES (1, 'JOÃO', 25, 'S');
+
+RESULTADO ESPERADO no MemoCamposPadrao:
+FId := 1;
+FNome := 'JOÃO';
+FIdade := 25;
+FAtivo := 'S';
+
+TESTE 2: Lista Manual + INSERT
+------------------------------
+
+Lista Manual (Cole no primeiro memo):
+id;nome;idade;ativo
+
+INSERT (Cole no segundo memo):
+INSERT INTO TESTE (ID, NOME, IDADE, ATIVO) VALUES (999, 'MARIA', 30, 'N');
+
+RESULTADO ESPERADO no MemoCamposPadrao:
+FId := 999;
+FNome := 'MARIA';
+FIdade := 30;
+FAtivo := 'N';
+
+INSTRUÇÕES PARA TESTE:
+1. Abra o ClassGenerator
+2. Cole a DDL ou lista manual no primeiro memo
+3. Cole o INSERT no segundo memo (novo campo)
+4. Clique em "Gerar"
+5. Vá na aba "Campos" e verifique o memo "Campos Padrão"
+6. Os valores devem aparecer conforme esperado acima

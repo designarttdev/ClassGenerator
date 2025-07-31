@@ -17,7 +17,9 @@ type
     Label2: TLabel;
     Label3: TLabel;
     Label4: TLabel;
+    Label12: TLabel;
     MemoInput: TMemo;
+    MemoInsert: TMemo;
     edtUnit: TEdit;
     edtInterface: TEdit;
     edtTipo: TEdit;
@@ -71,6 +73,7 @@ type
       end;
     function MapDBTypeToDelphi(const DBType: string): string;
     function ParseDDL(const AText: string): TArray<TFieldInfo>;
+    function ParseInsertValues(const InsertText: string): TArray<TFieldInfo>;
     function ToCamelCase(const S: string): string;
     procedure LimpaCampos;
     procedure CopiaMemo(AMemo : TMemo);
@@ -88,6 +91,101 @@ implementation
 
 {$R *.dfm}
 
+// Função para extrair valores de um script INSERT e usar como valores padrão
+function TFormClassGenerator.ParseInsertValues(const InsertText: string): TArray<TFieldInfo>;
+var
+  CleanText, FieldsPart, ValuesPart: string;
+  FieldsStartPos, FieldsEndPos, ValuesStartPos, ValuesEndPos: Integer;
+  FieldsArray, ValuesArray: TArray<string>;
+  I: Integer;
+  FieldName, FieldValue: string;
+begin
+  SetLength(Result, 0);
+  
+  if Trim(InsertText) = '' then
+    Exit;
+    
+  // Limpar o texto removendo quebras de linha e espaços extras
+  CleanText := StringReplace(InsertText, #13#10, ' ', [rfReplaceAll]);
+  CleanText := StringReplace(CleanText, #13, ' ', [rfReplaceAll]);
+  CleanText := StringReplace(CleanText, #10, ' ', [rfReplaceAll]);
+  CleanText := Trim(CleanText);
+  
+  // Procurar a parte dos campos (entre parênteses após o nome da tabela)
+  FieldsStartPos := Pos('(', CleanText);
+  if FieldsStartPos = 0 then
+    Exit;
+    
+  FieldsEndPos := Pos(')', CleanText);
+  if FieldsEndPos = 0 then
+    Exit;
+    
+  // Extrair a parte dos campos
+  FieldsPart := Copy(CleanText, FieldsStartPos + 1, FieldsEndPos - FieldsStartPos - 1);
+  FieldsPart := Trim(FieldsPart);
+  
+  // Procurar a parte VALUES
+  ValuesStartPos := Pos('VALUES', UpperCase(CleanText));
+  if ValuesStartPos = 0 then
+    Exit;
+    
+  // Procurar o primeiro parênteses após VALUES
+  ValuesStartPos := Pos('(', CleanText, ValuesStartPos);
+  if ValuesStartPos = 0 then
+    Exit;
+    
+  // Procurar o último parênteses (pode ter ponto e vírgula no final)
+  ValuesEndPos := Pos(')', CleanText, ValuesStartPos);
+  if ValuesEndPos = 0 then
+    Exit;
+    
+  // Extrair a parte dos valores
+  ValuesPart := Copy(CleanText, ValuesStartPos + 1, ValuesEndPos - ValuesStartPos - 1);
+  ValuesPart := Trim(ValuesPart);
+  
+  // Dividir campos e valores por vírgula
+  FieldsArray := FieldsPart.Split([',']);
+  ValuesArray := ValuesPart.Split([',']);
+  
+  // Verificar se o número de campos e valores é igual
+  if Length(FieldsArray) <> Length(ValuesArray) then
+    Exit;
+    
+  // Processar cada campo e valor
+  SetLength(Result, Length(FieldsArray));
+  for I := 0 to High(FieldsArray) do
+  begin
+    FieldName := Trim(FieldsArray[I]);
+    FieldValue := Trim(ValuesArray[I]);
+    
+    // Remover espaços e caracteres especiais do nome do campo
+    FieldName := StringReplace(FieldName, ' ', '', [rfReplaceAll]);
+    FieldName := StringReplace(FieldName, #9, '', [rfReplaceAll]);
+    
+    // Processar o valor
+    if FieldValue <> '' then
+    begin
+      // Se o valor está entre aspas simples, manter as aspas
+      if (Length(FieldValue) >= 2) and (FieldValue[1] = '''') and (FieldValue[Length(FieldValue)] = '''') then
+      begin
+        // É uma string, manter as aspas
+        Result[I].DefaultValue := FieldValue;
+      end
+      else
+      begin
+        // É um número ou outro tipo, usar como está
+        Result[I].DefaultValue := FieldValue;
+      end;
+    end
+    else
+    begin
+      Result[I].DefaultValue := '';
+    end;
+    
+    Result[I].Name := FieldName;
+    Result[I].DataType := ''; // Será definido pela DDL
+  end;
+end;
 
 procedure TFormClassGenerator.btnCopiarFuncsClick(Sender: TObject);
 begin
@@ -103,7 +201,6 @@ procedure TFormClassGenerator.btnCopiarUnitCompletaClick(Sender: TObject);
 begin
   CopiaMemo(MemoUnitCompleta);
 end;
-
 
 procedure TFormClassGenerator.btnCopiarCamposPadraoClick(Sender: TObject);
 begin
@@ -300,17 +397,18 @@ begin
   MemoDecRetorna.Clear;
   MemoDecSet.Clear;
   MemoUnitCompleta.Clear;
+  // MemoInsert.Clear; - Removido para preservar os valores do INSERT durante a geração
 end;
 
 // Evento que executa a geração
 procedure TFormClassGenerator.ButtonGerarClick(Sender: TObject);
 var
   InputFields: TArray<string>;
-  Fields: TArray<TFieldInfo>;
+  Fields, InsertFields: TArray<TFieldInfo>;
   FieldInfo: TFieldInfo;
-  FieldName, CamelName, TipoUnit, TipoInterface, FieldType, InputText: string;
+  FieldName, CamelName, TipoUnit, TipoInterface, FieldType, InputText, InsertText: string;
   DefaultValue, Entry, NomeTabela, TempText: string;
-  I, DefaultPos, NotNullPos, TablePos, SpacePos, ParenPos: Integer;
+  I, J, DefaultPos, NotNullPos, TablePos, SpacePos, ParenPos: Integer;
   FieldTokens: TArray<string>;
   SetLine, RetornaLine: string;
   IsDDL: Boolean;
@@ -321,6 +419,7 @@ begin
   TipoInterface := 'I' + ToCamelCase(Trim(edtInterface.Text).ToUpper);
 
   InputText := Trim(MemoInput.Text);
+  InsertText := Trim(MemoInsert.Text);
   IsDDL := Pos('CREATE TABLE', UpperCase(InputText)) > 0;
   
   // Extraindo o nome da tabela da DDL
@@ -354,10 +453,45 @@ begin
   if NomeTabela = '' then
     NomeTabela := Trim(edtUnit.Text);
 
+  // Processar o script INSERT se fornecido
+  if InsertText <> '' then
+  begin
+    InsertFields := ParseInsertValues(InsertText);
+    // Debug temporário - remover após teste
+//    if Length(InsertFields) > 0 then
+//      ShowMessage(Format('INSERT processado: %d campos encontrados. Primeiro campo: %s = %s',
+//        [Length(InsertFields), InsertFields[0].Name, InsertFields[0].DefaultValue]));
+  end
+  else
+    SetLength(InsertFields, 0);
+
   if IsDDL then
   begin
     // Parse completo com DefaultValue
     Fields := ParseDDL(InputText);
+    
+    // Aplicar valores do INSERT como padrão se disponíveis
+    if Length(InsertFields) > 0 then
+    begin
+      for I := 0 to High(Fields) do
+      begin
+        for J := 0 to High(InsertFields) do
+        begin
+          // Comparar nomes dos campos (case insensitive)
+          if UpperCase(Fields[I].Name) = UpperCase(InsertFields[J].Name) then
+          begin
+            // Se o campo não tem valor padrão na DDL, usar o valor do INSERT
+            if Fields[I].DefaultValue = '' then
+            begin
+              Fields[I].DefaultValue := InsertFields[J].DefaultValue;
+              // Debug temporário
+//              ShowMessage(Format('Campo %s recebeu valor do INSERT: %s', [Fields[I].Name, Fields[I].DefaultValue]));
+            end;
+            Break;
+          end;
+        end;
+      end;
+    end;
   end
   else
   begin
@@ -369,6 +503,19 @@ begin
       Fields[I].Name := Trim(InputFields[I]);
       Fields[I].DataType := Trim(edtTipo.Text).ToUpper;
       Fields[I].DefaultValue := ''; // não tem default nesse caso
+      
+      // Aplicar valores do INSERT se disponíveis
+      if Length(InsertFields) > 0 then
+      begin
+        for J := 0 to High(InsertFields) do
+        begin
+          if UpperCase(Fields[I].Name) = UpperCase(InsertFields[J].Name) then
+          begin
+            Fields[I].DefaultValue := InsertFields[J].DefaultValue;
+            Break;
+          end;
+        end;
+      end;
     end;
   end;
 
@@ -401,9 +548,9 @@ begin
         DefaultValue := StringReplace(DefaultValue, ')', '', [rfReplaceAll]);
         DefaultValue := StringReplace(DefaultValue, '(', '', [rfReplaceAll]);
         DefaultValue := StringReplace(DefaultValue, ';', '', [rfReplaceAll]);
-      end
-      else
-        DefaultValue := '';
+      end;
+      // Se não encontrou DEFAULT na entrada manual, manter o valor do INSERT (se houver)
+      // DefaultValue já foi definido pelo INSERT na seção anterior, não sobrescrever
     end;
 
     CamelName := ToCamelCase(FieldName);

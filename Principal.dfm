@@ -1,6 +1,7 @@
 object FormClassGenerator: TFormClassGenerator
   Left = 0
   Top = 0
+  BorderIcons = [biSystemMenu, biMinimize]
   Caption = 'FormClassGenerator'
   ClientHeight = 622
   ClientWidth = 945
@@ -19,7 +20,7 @@ object FormClassGenerator: TFormClassGenerator
     Top = 0
     Width = 945
     Height = 622
-    ActivePage = TabSheet2
+    ActivePage = pgPrincipal
     Align = alClient
     TabOrder = 0
     object pgPrincipal: TTabSheet
@@ -64,6 +65,15 @@ object FormClassGenerator: TFormClassGenerator
             'Campos para serem inseridos na classe separados por ";"    -    ' +
             'Para camelcase, separar por espa'#231'os.'
         end
+        object Label12: TLabel
+          Left = 20
+          Top = 285
+          Width = 439
+          Height = 13
+          Caption = 
+            'Script de INSERT (opcional) - Os valores ser'#227'o usados como padr'#245 +
+            'es nos campos da classe:'
+        end
         object MemoInput: TMemo
           Left = 20
           Top = 81
@@ -71,6 +81,14 @@ object FormClassGenerator: TFormClassGenerator
           Height = 192
           ScrollBars = ssVertical
           TabOrder = 0
+        end
+        object MemoInsert: TMemo
+          Left = 20
+          Top = 301
+          Width = 897
+          Height = 120
+          ScrollBars = ssVertical
+          TabOrder = 5
         end
         object edtUnit: TEdit
           Left = 20
@@ -101,7 +119,7 @@ object FormClassGenerator: TFormClassGenerator
         end
         object ButtonGerar: TButton
           Left = 419
-          Top = 306
+          Top = 440
           Width = 98
           Height = 38
           Caption = 'Gerar'
