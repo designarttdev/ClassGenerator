@@ -163,7 +163,7 @@ begin
     FieldName := StringReplace(FieldName, #9, '', [rfReplaceAll]);
     
     // Processar o valor
-    if FieldValue <> '' then
+    if (FieldValue <> '') and (UpperCase(FieldValue) <> 'NULL') then
     begin
       // Se o valor está entre aspas simples, manter as aspas
       if (Length(FieldValue) >= 2) and (FieldValue[1] = '''') and (FieldValue[Length(FieldValue)] = '''') then
@@ -179,7 +179,8 @@ begin
     end
     else
     begin
-      Result[I].DefaultValue := '';
+      // Valor vazio ou NULL - será definido depois baseado no tipo do campo da DDL
+      Result[I].DefaultValue := 'NULL_PLACEHOLDER';
     end;
     
     Result[I].Name := FieldName;
@@ -455,13 +456,7 @@ begin
 
   // Processar o script INSERT se fornecido
   if InsertText <> '' then
-  begin
-    InsertFields := ParseInsertValues(InsertText);
-    // Debug temporário - remover após teste
-//    if Length(InsertFields) > 0 then
-//      ShowMessage(Format('INSERT processado: %d campos encontrados. Primeiro campo: %s = %s',
-//        [Length(InsertFields), InsertFields[0].Name, InsertFields[0].DefaultValue]));
-  end
+    InsertFields := ParseInsertValues(InsertText)
   else
     SetLength(InsertFields, 0);
 
@@ -483,9 +478,23 @@ begin
             // Se o campo não tem valor padrão na DDL, usar o valor do INSERT
             if Fields[I].DefaultValue = '' then
             begin
-              Fields[I].DefaultValue := InsertFields[J].DefaultValue;
-              // Debug temporário
-//              ShowMessage(Format('Campo %s recebeu valor do INSERT: %s', [Fields[I].Name, Fields[I].DefaultValue]));
+              // Verificar se é um placeholder NULL e definir valor padrão baseado no tipo
+            if InsertFields[J].DefaultValue = 'NULL_PLACEHOLDER' then
+            begin
+              // Definir valor padrão baseado no tipo do campo
+              if Fields[I].DataType = 'String' then
+                Fields[I].DefaultValue := ''''''
+              else if (Fields[I].DataType = 'Integer') or (Fields[I].DataType = 'Double') then
+                Fields[I].DefaultValue := '0'
+              else if Fields[I].DataType = 'TDateTime' then
+                Fields[I].DefaultValue := 'EncodeDate(1900, 1, 1)'
+              else
+                Fields[I].DefaultValue := ''; // Fallback para outros tipos
+              end
+              else
+              begin
+                Fields[I].DefaultValue := InsertFields[J].DefaultValue;
+              end;
             end;
             Break;
           end;
@@ -511,7 +520,23 @@ begin
         begin
           if UpperCase(Fields[I].Name) = UpperCase(InsertFields[J].Name) then
           begin
-            Fields[I].DefaultValue := InsertFields[J].DefaultValue;
+            // Verificar se é um placeholder NULL e definir valor padrão baseado no tipo
+            if InsertFields[J].DefaultValue = 'NULL_PLACEHOLDER' then
+            begin
+              // Definir valor padrão baseado no tipo do campo
+              if Fields[I].DataType = 'String' then
+                Fields[I].DefaultValue := ''''''
+              else if (Fields[I].DataType = 'Integer') or (Fields[I].DataType = 'Double') then
+                Fields[I].DefaultValue := '0'
+              else if Fields[I].DataType = 'TDateTime' then
+                Fields[I].DefaultValue := 'EncodeDate(1900, 1, 1)'
+              else
+                Fields[I].DefaultValue := ''; // Fallback para outros tipos
+            end
+            else
+            begin
+              Fields[I].DefaultValue := InsertFields[J].DefaultValue;
+            end;
             Break;
           end;
         end;
@@ -555,9 +580,6 @@ begin
 
     CamelName := ToCamelCase(FieldName);
 
-      // Geração dos campos privados
-    MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
-
     // Geração das declarações e implementações dos métodos Set
     SetLine := Format(
       'function Set%s(value: %s): %s;',
@@ -573,7 +595,7 @@ begin
     MemoSet.Lines.Add('begin');
     MemoSet.Lines.Add('  Result := Self;');
 
-    if UpperCase(FieldType) = 'STRING' then
+    if FieldType = 'String' then
       MemoSet.Lines.Add('  F' + CamelName + ' := Trim(value).ToUpper;')
     else
       MemoSet.Lines.Add('  F' + CamelName + ' := value;');
@@ -595,7 +617,7 @@ begin
     MemoRetorna.Lines.Add(RetornaLine);
     MemoRetorna.Lines.Add('begin');
 
-    if UpperCase(FieldType) = 'STRING' then
+    if FieldType = 'String' then
       MemoRetorna.Lines.Add('  Result := Trim(F' + CamelName + ').ToUpper;')
     else
       MemoRetorna.Lines.Add('  Result := F' + CamelName + ';');
@@ -603,17 +625,183 @@ begin
     MemoRetorna.Lines.Add('end;');
     MemoRetorna.Lines.Add('');
 
-    // Geração do campo padrão (DefaultValue ou valor padrão)
-    if DefaultValue <> '' then
-      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ' + DefaultValue + ';')
-    else if UpperCase(FieldType) = 'STRING' then
-      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ''''; ')
-    else if (UpperCase(FieldType) = 'INTEGER') or (UpperCase(FieldType) = 'DOUBLE') then
-      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := 0; ')
-    else if (UpperCase(FieldType) = 'TDATETIME') or (UpperCase(FieldType) = 'TDATE') then
-      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := EncodeDate(1900, 1, 1); ')
-    else
-      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := null; ');
+  end;
+
+  // Geração dos campos privados agrupados por tipo no MemoCampos
+  
+  // Campos STRING
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if FieldType = 'String' then
+      MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
+  end;
+  
+  // Campos INTEGER
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if FieldType = 'Integer' then
+      MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
+  end;
+  
+  // Campos DOUBLE
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if FieldType = 'Double' then
+      MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
+  end;
+  
+  // Campos TDATETIME
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if FieldType = 'TDateTime' then
+      MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
+  end;
+  
+  // Outros tipos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if not ((FieldType = 'String') or 
+            (FieldType = 'Integer') or 
+            (FieldType = 'Double') or 
+            (FieldType = 'TDateTime')) then
+      MemoCampos.Lines.Add('F' + CamelName + ': ' + FieldType + ';');
+  end;
+
+  // Geração dos campos padrão agrupados por tipo no MemoCamposPadrao
+  
+  // Campos com valores específicos (do INSERT ou DEFAULT da DDL) - agrupados por tipo
+  
+  // Campos STRING com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and (FieldType = 'String') then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';');
+  end;
+  
+  // Campos INTEGER com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and (FieldType = 'Integer') then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';');
+  end;
+  
+  // Campos DOUBLE com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and (FieldType = 'Double') then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';');
+  end;
+  
+  // Campos TDATETIME com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and (FieldType = 'TDateTime') then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';');
+  end;
+  
+  // Outros tipos com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and 
+       not ((FieldType = 'String') or 
+            (FieldType = 'Integer') or 
+            (FieldType = 'Double') or 
+            (FieldType = 'TDateTime')) then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';');
+  end;
+  
+  // Separador se houver campos com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    if Fields[I].DefaultValue <> '' then
+    begin
+      MemoCamposPadrao.Lines.Add('');
+      Break;
+    end;
+  end;
+  
+  // Campos STRING (valores vazios)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and (FieldType = 'String') then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := '''';');
+  end;
+  
+  // Campos INTEGER (valores numéricos = 0)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and (FieldType = 'Integer') then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := 0;');
+  end;
+  
+  // Campos DOUBLE (valores numéricos = 0)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and (FieldType = 'Double') then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := 0;');
+  end;
+  
+  // Campos TDATETIME (data padrão)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and (FieldType = 'TDateTime') then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := EncodeDate(1900, 1, 1);');
+  end;
+  
+  // Outros tipos (null)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and 
+       not ((FieldType = 'String') or 
+            (FieldType = 'Integer') or 
+            (FieldType = 'Double') or 
+            (FieldType = 'TDateTime')) then
+      MemoCamposPadrao.Lines.Add('F' + CamelName + ' := null;');
   end;
 
   // Gerando a unit completa
@@ -710,13 +898,13 @@ begin
     // Adicionando parâmetros com identação correta
     SqlParams := SqlParams + '    vQuery.ParamByName(''' + FieldName + ''')';
     
-    if UpperCase(FieldInfo.DataType) = 'INTEGER' then
+    if FieldInfo.DataType = 'Integer' then
       SqlParams := SqlParams + '.AsInteger'
-    else if UpperCase(FieldInfo.DataType) = 'DOUBLE' then
+    else if FieldInfo.DataType = 'Double' then
       SqlParams := SqlParams + '.AsFloat'
-    else if UpperCase(FieldInfo.DataType) = 'TDATETIME' then
+    else if FieldInfo.DataType = 'TDateTime' then
       SqlParams := SqlParams + '.AsDateTime'
-    else if UpperCase(FieldInfo.DataType) = 'STRING' then
+    else if FieldInfo.DataType = 'String' then
       SqlParams := SqlParams + '.AsString'
     else
       SqlParams := SqlParams + '.AsVariant';
@@ -790,13 +978,59 @@ begin
   UnitContent := UnitContent + '  private' + sLineBreak;
   UnitContent := UnitContent + '    FConexao : TFDCustomConnection;' + sLineBreak + sLineBreak;
   
-  // Campos privados
+  // Campos privados agrupados por tipo
+  
+  // Campos STRING
   for I := 0 to High(Fields) do
   begin
     FieldInfo := Fields[I];
     CamelName := ToCamelCase(FieldInfo.Name);
     FieldType := FieldInfo.DataType;
-    UnitContent := UnitContent + '    F' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+    if FieldType = 'String' then
+      UnitContent := UnitContent + '    F' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+  end;
+  
+  // Campos INTEGER
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if FieldType = 'Integer' then
+      UnitContent := UnitContent + '    F' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+  end;
+  
+  // Campos DOUBLE
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if FieldType = 'Double' then
+      UnitContent := UnitContent + '    F' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+  end;
+  
+  // Campos TDATETIME e TDATE
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if FieldType = 'TDateTime' then
+      UnitContent := UnitContent + '    F' + CamelName + ': ' + FieldType + ';' + sLineBreak;
+  end;
+  
+  // Outros tipos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if not ((FieldType = 'String') or 
+            (FieldType = 'Integer') or 
+            (FieldType = 'Double') or 
+            (FieldType = 'TDateTime')) then
+      UnitContent := UnitContent + '    F' + CamelName + ': ' + FieldType + ';' + sLineBreak;
   end;
   
   UnitContent := UnitContent + sLineBreak + '    constructor Create(Conexao : TFDConnection);' + sLineBreak + sLineBreak;
@@ -840,7 +1074,7 @@ begin
     UnitContent := UnitContent + 'function ' + TipoUnit + '.Retorna' + CamelName + ': ' + FieldType + ';' + sLineBreak;
     UnitContent := UnitContent + 'begin' + sLineBreak;
     
-    if UpperCase(FieldType) = 'STRING' then
+    if FieldType = 'String' then
       UnitContent := UnitContent + '  Result := Trim(F' + CamelName + ').ToUpper;' + sLineBreak
     else
       UnitContent := UnitContent + '  Result := F' + CamelName + ';' + sLineBreak;
@@ -853,21 +1087,126 @@ begin
   UnitContent := UnitContent + 'begin' + sLineBreak;
   UnitContent := UnitContent + '  FConexao := Conexao;' + sLineBreak + sLineBreak;
   
-  // Inicialização dos campos no constructor
+  // Inicialização dos campos no constructor - agrupados por tipo
+  
+  // Campos com valores específicos (do INSERT ou DEFAULT da DDL) - agrupados por tipo
+  
+  // Campos STRING com valores específicos
   for I := 0 to High(Fields) do
   begin
     FieldInfo := Fields[I];
     CamelName := ToCamelCase(FieldInfo.Name);
     FieldType := FieldInfo.DataType;
-    
-    if FieldInfo.DefaultValue <> '' then
-      UnitContent := UnitContent + '  F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';' + sLineBreak
-    else if UpperCase(FieldType) = 'STRING' then
-      UnitContent := UnitContent + '  F' + CamelName + ' := '''';' + sLineBreak
-    else if (UpperCase(FieldType) = 'INTEGER') or (UpperCase(FieldType) = 'DOUBLE') then
-      UnitContent := UnitContent + '  F' + CamelName + ' := 0;' + sLineBreak
-    else if UpperCase(FieldType) = 'TDATETIME' then
+    if (FieldInfo.DefaultValue <> '') and (FieldType = 'String') then
+      UnitContent := UnitContent + '  F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';' + sLineBreak;
+  end;
+  
+  // Campos INTEGER com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and (FieldType = 'Integer') then
+      UnitContent := UnitContent + '  F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';' + sLineBreak;
+  end;
+  
+  // Campos DOUBLE com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and (FieldType = 'Double') then
+      UnitContent := UnitContent + '  F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';' + sLineBreak;
+  end;
+  
+  // Campos TDATETIME com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and (FieldType = 'TDateTime') then
+      UnitContent := UnitContent + '  F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';' + sLineBreak;
+  end;
+  
+  // Outros tipos com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue <> '') and 
+       not ((FieldType = 'String') or 
+            (FieldType = 'Integer') or 
+            (FieldType = 'Double') or 
+            (FieldType = 'TDateTime')) then
+      UnitContent := UnitContent + '  F' + CamelName + ' := ' + FieldInfo.DefaultValue + ';' + sLineBreak;
+  end;
+  
+  // Separador se houver campos com valores específicos
+  for I := 0 to High(Fields) do
+  begin
+    if Fields[I].DefaultValue <> '' then
+    begin
+      UnitContent := UnitContent + sLineBreak;
+      Break;
+    end;
+  end;
+  
+  // Campos STRING (valores vazios)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and (FieldType = 'String') then
+      UnitContent := UnitContent + '  F' + CamelName + ' := '''';' + sLineBreak;
+  end;
+  
+  // Campos INTEGER (valores numéricos = 0)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and (FieldType = 'Integer') then
+      UnitContent := UnitContent + '  F' + CamelName + ' := 0;' + sLineBreak;
+  end;
+  
+  // Campos DOUBLE (valores numéricos = 0)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and (FieldType = 'Double') then
+      UnitContent := UnitContent + '  F' + CamelName + ' := 0;' + sLineBreak;
+  end;
+  
+  // Campos TDATETIME (data padrão)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and (FieldType = 'TDateTime') then
       UnitContent := UnitContent + '  F' + CamelName + ' := EncodeDate(1900, 1, 1);' + sLineBreak;
+  end;
+  
+  // Outros tipos (valores null)
+  for I := 0 to High(Fields) do
+  begin
+    FieldInfo := Fields[I];
+    CamelName := ToCamelCase(FieldInfo.Name);
+    FieldType := FieldInfo.DataType;
+    if (FieldInfo.DefaultValue = '') and 
+       not ((FieldType = 'String') or 
+            (FieldType = 'Integer') or 
+            (FieldType = 'Double') or 
+            (FieldType = 'TDateTime')) then
+      UnitContent := UnitContent + '  F' + CamelName + ' := null;' + sLineBreak;
   end;
   
   UnitContent := UnitContent + sLineBreak + 'end;' + sLineBreak + sLineBreak;
@@ -898,7 +1237,7 @@ begin
     UnitContent := UnitContent + 'begin' + sLineBreak;
     UnitContent := UnitContent + '  Result := Self;' + sLineBreak;
     
-    if UpperCase(FieldType) = 'STRING' then
+    if FieldType = 'String' then
       UnitContent := UnitContent + '  F' + CamelName + ' := Trim(value).ToUpper;' + sLineBreak
     else
       UnitContent := UnitContent + '  F' + CamelName + ' := value;' + sLineBreak;
