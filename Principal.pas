@@ -861,7 +861,7 @@ begin
       Result := Result + '    vQuery.SQL.Add('', ' + FieldName;
     
     if I = High(Fields) then
-      Result := Result + ''');' + sLineBreak
+      Result := Result + ')'');' + sLineBreak  // Corrigido: adicionado fechamento do parêntese
     else
       Result := Result + ''');' + sLineBreak;
   end;
@@ -880,7 +880,7 @@ begin
       Result := Result + '    vQuery.SQL.Add('', :' + FieldName;
     
     if I = High(Fields) then
-      Result := Result + ''');' + sLineBreak
+      Result := Result + ')'');' + sLineBreak  // Corrigido: adicionado fechamento do parêntese
     else
       Result := Result + ''');' + sLineBreak;
   end;
